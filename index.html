@@ -13,7 +13,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
 :root{
   --jam:#3F1817;
@@ -408,6 +407,10 @@ img{max-width:100%}
       <label for="pphone">WhatsApp <span style="color:var(--muted);font-weight:400">(opcional)</span></label>
       <input type="tel" id="pphone" placeholder="(00) 00000-0000" autocomplete="tel">
     </div>
+    <label style="display:flex;gap:.5rem;align-items:flex-start;font-size:.8rem;line-height:1.4;margin:1rem 0;text-align:left;cursor:pointer;color:var(--muted)">
+      <input type="checkbox" id="lgpd-consent" style="margin-top:.2rem;flex-shrink:0;accent-color:var(--wine)" />
+      <span>Li e aceito a <a href="https://portal.dralaurianesilva.com.br/privacidade" target="_blank" rel="noopener" style="color:var(--wine);text-decoration:underline">Política de Privacidade</a> e autorizo o uso dos meus dados para os fins nela descritos, incluindo o processamento por serviços de IA e o contato sobre a mentoria.</span>
+    </label>
     <div id="regErr" class="reg-err">Por favor, preencha nome e e-mail válidos.</div>
     <button class="btn btn-wine" style="width:100%;justify-content:center;margin-top:14px" onclick="startTest()">Iniciar Assessment →</button>
   </div>
@@ -483,19 +486,23 @@ img{max-width:100%}
 
 <script>
 /* ════════════════════════════════════════════════════════════
-   EmailJS Config
-   1. Crie conta grátis em emailjs.com
-   2. Crie um serviço Gmail → anote o Service ID
-   3. Crie um template → anote o Template ID
-   4. Vá em Account → anote a Public Key
-   Substitua os valores abaixo:
+   Plataforma (API server-side): toda a pontuação, mapeamentos e
+   interpretações vivem no servidor. Este HTML é apenas casca.
    ════════════════════════════════════════════════════════════ */
-const EMAILJS_CFG = {
-  serviceId: 'service_agommze',
-  templateId: 'template_ni3nh2s',       // template do relatório
-  ratingTemplateId: 'template_g3pc2tc',  // template de avaliações
-  publicKey: 'w5Pje4POkIn5zzHPD',
-};
+const PLATAFORMA_URL = (location.hostname==='localhost'||location.hostname==='127.0.0.1') ? 'http://localhost:3005' : 'https://portal.dralaurianesilva.com.br'; // TODO: URL de produção
+
+/* ════════ ANALYTICS DE FUNIL (best-effort, sem PII) ════════ */
+const EVENTO_ORIGEM = 'inself';
+const EVENTO_SESSAO = (function(){ try { let s = localStorage.getItem('ev_sessao'); if(!s){ s = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('ev_sessao', s); } return s; } catch(e){ return Math.random().toString(36).slice(2); } })();
+function registrarEvento(tipo){
+  try {
+    const base = (typeof PLATAFORMA_URL !== 'undefined' && PLATAFORMA_URL) ? PLATAFORMA_URL : 'https://portal.dralaurianesilva.com.br';
+    fetch(base + '/api/evento', { method:'POST', headers:{'Content-Type':'application/json'}, keepalive:true, body: JSON.stringify({ tipo: tipo, origem: EVENTO_ORIGEM, sessao: EVENTO_SESSAO }) }).catch(function(){});
+  } catch(e){}
+}
+
+/* Token de acesso lido de ?t= — validado no servidor */
+const token = new URLSearchParams(location.search).get('t') || '';
 
 const CFG = {
   appName: 'Perfil Comportamental Inself',
@@ -506,24 +513,24 @@ const CFG = {
   instagramUrl: 'https://www.instagram.com/dralauriane/',
 };
 
-/* ════════ DATA ════════ */
+/* ════════ DATA (apenas textos das perguntas — pesos/mapeamentos vivem no servidor) ════════ */
 const DG = [
-  [{t:'Dominante',f:'D'},{t:'Inspirador',f:'I'},{t:'Estável',f:'S'},{t:'Analítico',f:'C'}],
-  [{t:'Ousado',f:'D'},{t:'Entusiasmado',f:'I'},{t:'Leal',f:'S'},{t:'Preciso',f:'C'}],
-  [{t:'Decidido',f:'D'},{t:'Comunicativo',f:'I'},{t:'Paciente',f:'S'},{t:'Organizado',f:'C'}],
-  [{t:'Competitivo',f:'D'},{t:'Otimista',f:'I'},{t:'Harmonioso',f:'S'},{t:'Detalhista',f:'C'}],
-  [{t:'Direto',f:'D'},{t:'Persuasivo',f:'I'},{t:'Receptivo',f:'S'},{t:'Cauteloso',f:'C'}],
-  [{t:'Agressivo',f:'D'},{t:'Extrovertido',f:'I'},{t:'Tolerante',f:'S'},{t:'Perfeccionista',f:'C'}],
-  [{t:'Autoconfiante',f:'D'},{t:'Animado',f:'I'},{t:'Consistente',f:'S'},{t:'Meticuloso',f:'C'}],
-  [{t:'Rápido',f:'D'},{t:'Expressivo',f:'I'},{t:'Estável',f:'S'},{t:'Rigoroso',f:'C'}],
-  [{t:'Comandante',f:'D'},{t:'Sociável',f:'I'},{t:'Cooperativo',f:'S'},{t:'Sistemático',f:'C'}],
-  [{t:'Independente',f:'D'},{t:'Motivador',f:'I'},{t:'Apoiador',f:'S'},{t:'Lógico',f:'C'}],
-  [{t:'Pioneiro',f:'D'},{t:'Popular',f:'I'},{t:'Tranquilo',f:'S'},{t:'Consciente',f:'C'}],
-  [{t:'Exigente',f:'D'},{t:'Influente',f:'I'},{t:'Confiável',f:'S'},{t:'Cuidadoso',f:'C'}],
-  [{t:'Resoluto',f:'D'},{t:'Energético',f:'I'},{t:'Pacífico',f:'S'},{t:'Objetivo',f:'C'}],
-  [{t:'Determinado',f:'D'},{t:'Criativo',f:'I'},{t:'Cordial',f:'S'},{t:'Estratégico',f:'C'}],
-  [{t:'Corajoso',f:'D'},{t:'Dinâmico',f:'I'},{t:'Gentil',f:'S'},{t:'Precavido',f:'C'}],
-  [{t:'Ambicioso',f:'D'},{t:'Espontâneo',f:'I'},{t:'Modesto',f:'S'},{t:'Disciplinado',f:'C'}],
+  [{t:'Dominante'},{t:'Inspirador'},{t:'Estável'},{t:'Analítico'}],
+  [{t:'Ousado'},{t:'Entusiasmado'},{t:'Leal'},{t:'Preciso'}],
+  [{t:'Decidido'},{t:'Comunicativo'},{t:'Paciente'},{t:'Organizado'}],
+  [{t:'Competitivo'},{t:'Otimista'},{t:'Harmonioso'},{t:'Detalhista'}],
+  [{t:'Direto'},{t:'Persuasivo'},{t:'Receptivo'},{t:'Cauteloso'}],
+  [{t:'Agressivo'},{t:'Extrovertido'},{t:'Tolerante'},{t:'Perfeccionista'}],
+  [{t:'Autoconfiante'},{t:'Animado'},{t:'Consistente'},{t:'Meticuloso'}],
+  [{t:'Rápido'},{t:'Expressivo'},{t:'Estável'},{t:'Rigoroso'}],
+  [{t:'Comandante'},{t:'Sociável'},{t:'Cooperativo'},{t:'Sistemático'}],
+  [{t:'Independente'},{t:'Motivador'},{t:'Apoiador'},{t:'Lógico'}],
+  [{t:'Pioneiro'},{t:'Popular'},{t:'Tranquilo'},{t:'Consciente'}],
+  [{t:'Exigente'},{t:'Influente'},{t:'Confiável'},{t:'Cuidadoso'}],
+  [{t:'Resoluto'},{t:'Energético'},{t:'Pacífico'},{t:'Objetivo'}],
+  [{t:'Determinado'},{t:'Criativo'},{t:'Cordial'},{t:'Estratégico'}],
+  [{t:'Corajoso'},{t:'Dinâmico'},{t:'Gentil'},{t:'Precavido'}],
+  [{t:'Ambicioso'},{t:'Espontâneo'},{t:'Modesto'},{t:'Disciplinado'}],
 ];
 
 const MQ = [
@@ -545,38 +552,19 @@ const MQ = [
   {q:'Seu estilo de trabalho é...',a:[{t:'Sistemático — listas, rotinas, processos definidos',d:'J'},{t:'Orgânico — adapto conforme o momento pede',d:'P'}]},
 ];
 
-const MBTI_TYPES = {
-  INTJ:{name:'O Arquiteto',tagline:'Estrategista visionário com mente analítica e determinação singular',desc:'Você combina visão estratégica de longo prazo com capacidade de execução metódica. Pensa de forma sistêmica, desafia o status quo com argumentos sólidos. <strong>Ponto forte:</strong> transformar visões complexas em planos executáveis. <strong>Desafio:</strong> paciência com quem não acompanha seu ritmo mental.'},
-  INTP:{name:'O Lógico',tagline:'Inovador teórico com sede insaciável por conhecimento',desc:'Mente analítica com capacidade rara de ver o que ninguém mais viu. Resolve problemas complexos com elegância conceitual. <strong>Ponto forte:</strong> soluções originais onde outros veem obstáculos. <strong>Desafio:</strong> transformar conceitos brilhantes em ação consistente.'},
-  ENTJ:{name:'O Comandante',tagline:'Líder nato com visão de longo prazo e execução implacável',desc:'Você nasceu para liderar. Decisivo, visionário e capaz de estruturar caos em estratégia. <strong>Ponto forte:</strong> construir times e entregar resultado. <strong>Desafio:</strong> cultivar escuta ativa — as melhores ideias nem sempre vêm de você.'},
-  ENTP:{name:'O Debatedor',tagline:'Empreendedor disruptivo que usa a mente como seu maior ativo',desc:'Você enxerga oportunidades onde outros veem limitações. Conecta pontos distantes com velocidade intelectual. <strong>Ponto forte:</strong> inovar e energizar ambientes com ideias provocadoras. <strong>Desafio:</strong> finalizar antes de começar o próximo projeto brilhante.'},
-  INFJ:{name:'O Advogado',tagline:'Visionário de propósito profundo com impacto transformador',desc:'Você vê padrões nas pessoas antes de elas se verem. Lidera com propósito e inspira pela autenticidade. <strong>Ponto forte:</strong> criar ambientes onde pessoas se tornam melhores. <strong>Desafio:</strong> estabelecer limites — você doa tanto que pode se esgotar.'},
-  INFP:{name:'O Mediador',tagline:'Criativo empático que constrói negócios com significado e alma',desc:'Movido por autenticidade, você constrói negócios onde lucro e propósito coexistem. <strong>Ponto forte:</strong> criar produtos com alma genuína. <strong>Desafio:</strong> navegar o lado prático sem perder a essência que faz seu trabalho único.'},
-  ENFJ:{name:'O Protagonista',tagline:'Líder inspirador que multiplica potencial nas pessoas ao redor',desc:'Você motiva, conecta e desenvolve pessoas de forma natural. Times te seguem pela confiança que você gera. <strong>Ponto forte:</strong> transformar equipes comuns em times extraordinários. <strong>Desafio:</strong> tomar decisões difíceis que podem desagradar, mas são certas para o negócio.'},
-  ENFP:{name:'O Ativista',tagline:'Catalisador energético que une visão, pessoas e entusiasmo',desc:'Energia contagiante e capacidade de ver potencial em cada pessoa. <strong>Ponto forte:</strong> inspirar e mobilizar para frente. <strong>Desafio:</strong> disciplina que transforma entusiasmo em resultado consistente.'},
-  ISTJ:{name:'O Logístico',tagline:'Pilar de confiança que constrói sistemas duradouros',desc:'Confiabilidade extraordinária e comprometimento com qualidade. Você cumpre o que promete, sempre. <strong>Ponto forte:</strong> construir negócios duradouros. <strong>Desafio:</strong> abraçar inovação — às vezes o que funcionou ontem precisa ser renovado.'},
-  ISTP:{name:'O Virtuoso',tagline:'Solucionador pragmático com maestria técnica e adaptabilidade',desc:'Pragmático e eficaz sob pressão — você resolve problemas com elegância técnica notável. <strong>Ponto forte:</strong> agir quando necessário e entregar resultado com eficiência. <strong>Desafio:</strong> comunicar seu valor — você faz mais do que mostra.'},
-  ESTJ:{name:'O Executor',tagline:'Administrador eficaz que lidera com autoridade e comprometimento',desc:'Estrutura, processa e entrega — seu time sabe exatamente o que esperar de você. <strong>Ponto forte:</strong> clareza de expectativas e consistência de resultado. <strong>Desafio:</strong> flexibilidade — nem todos trabalham como você.'},
-  ESTP:{name:'O Empreendedor',tagline:'Ágil, perspicaz e orientado para ação e resultado imediato',desc:'Rápido, perspicaz e energético, você prospera em ambientes dinâmicos. Negocia com naturalidade. <strong>Ponto forte:</strong> decidir e agir com confiança. <strong>Desafio:</strong> parar para planejar — a intuição é poderosa, mas um mapa acelera qualquer jornada.'},
-  ISFJ:{name:'O Defensor',tagline:'Protetor dedicado que lidera pelo cuidado e lealdade genuína',desc:'Cuidado genuíno e comprometimento inabalável. Você cria ambientes onde pessoas se sentem seguras para crescer. <strong>Ponto forte:</strong> lealdade e consistência. <strong>Desafio:</strong> colocar suas próprias necessidades na equação.'},
-  ISFP:{name:'O Aventureiro',tagline:'Criativo sensível que lidera pelo exemplo e autenticidade',desc:'Autêntico e orientado por valores, você cria produtos e serviços com beleza e cuidado. <strong>Ponto forte:</strong> liderança pelo exemplo genuíno. <strong>Desafio:</strong> visibilidade — o mundo precisa te ver para te contratar.'},
-  ESFJ:{name:'O Cônsul',tagline:'Harmonizador social que constrói times coesos e culturas fortes',desc:'Conector nato que constrói comunidades onde as pessoas se sentem parte de algo maior. <strong>Ponto forte:</strong> fazer negócios com alma genuína. <strong>Desafio:</strong> estabelecer limites saudáveis e aprender a dizer não sem culpa.'},
-  ESFP:{name:'O Animador',tagline:'Espontâneo, caloroso e energizador de ambientes e pessoas',desc:'Energia pura, presença magnética e capacidade de transformar qualquer ambiente. <strong>Ponto forte:</strong> vender com naturalidade e conectar com autenticidade. <strong>Desafio:</strong> disciplina operacional — o back-office que sustenta o show.'},
-};
-
 const VQ = [
-  {q:'Valorizo ocupar posições onde posso liderar e influenciar decisões importantes.',c:'P'},
-  {q:'Crescimento profissional, reconhecimento e status são motivadores relevantes para mim.',c:'P'},
-  {q:'Avalio constantemente o custo-benefício das minhas decisões e investimentos de tempo.',c:'E'},
-  {q:'Resultados financeiros e retorno sobre investimento guiam minha estratégia de negócio.',c:'E'},
-  {q:'Tenho grande prazer em aprender e ampliar meu conhecimento continuamente.',c:'T'},
-  {q:'Busco entender profundamente o "porquê" das coisas antes de agir.',c:'T'},
-  {q:'Qualidade de vida e bem-estar são tão importantes quanto conquistas materiais.',c:'A'},
-  {q:'Aprecio a beleza, experiências subjetivas e a dimensão estética da vida.',c:'A'},
-  {q:'Sinto verdadeira satisfação quando contribuo para o crescimento de outras pessoas.',c:'S'},
-  {q:'Fazer parte de algo maior do que eu mesmo(a) é uma motivação genuína.',c:'S'},
-  {q:'Vivo guiado(a) por princípios e valores profundos que nunca abro mão.',c:'R'},
-  {q:'Uma estrutura filosófica, espiritual ou de crenças orienta minhas escolhas de vida.',c:'R'},
+  {q:'Valorizo ocupar posições onde posso liderar e influenciar decisões importantes.'},
+  {q:'Crescimento profissional, reconhecimento e status são motivadores relevantes para mim.'},
+  {q:'Avalio constantemente o custo-benefício das minhas decisões e investimentos de tempo.'},
+  {q:'Resultados financeiros e retorno sobre investimento guiam minha estratégia de negócio.'},
+  {q:'Tenho grande prazer em aprender e ampliar meu conhecimento continuamente.'},
+  {q:'Busco entender profundamente o "porquê" das coisas antes de agir.'},
+  {q:'Qualidade de vida e bem-estar são tão importantes quanto conquistas materiais.'},
+  {q:'Aprecio a beleza, experiências subjetivas e a dimensão estética da vida.'},
+  {q:'Sinto verdadeira satisfação quando contribuo para o crescimento de outras pessoas.'},
+  {q:'Fazer parte de algo maior do que eu mesmo(a) é uma motivação genuína.'},
+  {q:'Vivo guiado(a) por princípios e valores profundos que nunca abro mão.'},
+  {q:'Uma estrutura filosófica, espiritual ou de crenças orienta minhas escolhas de vida.'},
 ];
 
 const LQ = [
@@ -593,38 +581,38 @@ const LQ = [
 ];
 
 const IQ=[
-  {q:'Tenho clareza sobre quem sou como líder e empreendedor(a).',r:false},
-  {q:'Acredito que minha personalidade é compatível com o sucesso nos negócios.',r:false},
-  {q:'Sinto-me confortável assumindo posições de liderança e visibilidade.',r:false},
-  {q:'Reconheço-me como alguém capaz de inspirar e influenciar outras pessoas.',r:false},
-  {q:'Às vezes tenho dificuldade em me ver como um(a) empresário(a) de verdadeiro sucesso.',r:true},
-  {q:'Minha identidade é maior do que os desafios e fracassos que enfrento.',r:false},
-  {q:'Quando falho, ainda me vejo como uma pessoa competente e valiosa.',r:false},
-  {q:'Sinto que tenho o perfil certo para alcançar grandes resultados empresariais.',r:false},
+  {q:'Tenho clareza sobre quem sou como líder e empreendedor(a).'},
+  {q:'Acredito que minha personalidade é compatível com o sucesso nos negócios.'},
+  {q:'Sinto-me confortável assumindo posições de liderança e visibilidade.'},
+  {q:'Reconheço-me como alguém capaz de inspirar e influenciar outras pessoas.'},
+  {q:'Às vezes tenho dificuldade em me ver como um(a) empresário(a) de verdadeiro sucesso.'},
+  {q:'Minha identidade é maior do que os desafios e fracassos que enfrento.'},
+  {q:'Quando falho, ainda me vejo como uma pessoa competente e valiosa.'},
+  {q:'Sinto que tenho o perfil certo para alcançar grandes resultados empresariais.'},
 ];
 
 const KQ=[
-  {q:'Acredito que tenho as habilidades necessárias para escalar meu negócio.',r:false},
-  {q:'Quando encontro um obstáculo, confio genuinamente na minha capacidade de superá-lo.',r:false},
-  {q:'Frequentemente sinto que "ainda não estou pronto(a)" para os próximos passos.',r:true},
-  {q:'Consigo aprender e me adaptar rapidamente a novas situações e desafios.',r:false},
-  {q:'Tenho confiança para tomar decisões importantes mesmo com informações incompletas.',r:false},
-  {q:'Às vezes duvido se sou bom(a) o suficiente para o nível que quero atingir.',r:true},
-  {q:'Acredito que minha experiência e conhecimento têm muito valor no mercado.',r:false},
-  {q:'Sinto que tenho o que é preciso para competir com os melhores do meu setor.',r:false},
+  {q:'Acredito que tenho as habilidades necessárias para escalar meu negócio.'},
+  {q:'Quando encontro um obstáculo, confio genuinamente na minha capacidade de superá-lo.'},
+  {q:'Frequentemente sinto que "ainda não estou pronto(a)" para os próximos passos.'},
+  {q:'Consigo aprender e me adaptar rapidamente a novas situações e desafios.'},
+  {q:'Tenho confiança para tomar decisões importantes mesmo com informações incompletas.'},
+  {q:'Às vezes duvido se sou bom(a) o suficiente para o nível que quero atingir.'},
+  {q:'Acredito que minha experiência e conhecimento têm muito valor no mercado.'},
+  {q:'Sinto que tenho o que é preciso para competir com os melhores do meu setor.'},
 ];
 
 const AQ=[
-  {q:'Mereço receber muito dinheiro pelo meu trabalho e expertise.',r:false},
-  {q:'Sinto-me confortável em cobrar preços altos pelos meus produtos ou serviços.',r:false},
-  {q:'Acredito que a riqueza financeira significativa está disponível para mim.',r:false},
-  {q:'Tenho desconforto interno quando imagino ganhar muito mais do que ganho hoje.',r:true},
-  {q:'Acredito que é possível ter grande riqueza e pleno bem-estar emocional ao mesmo tempo.',r:false},
-  {q:'No fundo, sinto que "não sou do tipo" que fica rico(a).',r:true},
-  {q:'Invisto em mim mesmo(a) sem culpa, pois confio que me gero retorno.',r:false},
-  {q:'Tenho clareza de que prosperidade material não contradiz meus valores pessoais.',r:false},
-  {q:'Às vezes me saboto quando estou prestes a alcançar um novo patamar financeiro.',r:true},
-  {q:'Acredito profundamente que mereço viver em abundância em todas as áreas da vida.',r:false},
+  {q:'Mereço receber muito dinheiro pelo meu trabalho e expertise.'},
+  {q:'Sinto-me confortável em cobrar preços altos pelos meus produtos ou serviços.'},
+  {q:'Acredito que a riqueza financeira significativa está disponível para mim.'},
+  {q:'Tenho desconforto interno quando imagino ganhar muito mais do que ganho hoje.'},
+  {q:'Acredito que é possível ter grande riqueza e pleno bem-estar emocional ao mesmo tempo.'},
+  {q:'No fundo, sinto que "não sou do tipo" que fica rico(a).'},
+  {q:'Invisto em mim mesmo(a) sem culpa, pois confio que me gero retorno.'},
+  {q:'Tenho clareza de que prosperidade material não contradiz meus valores pessoais.'},
+  {q:'Às vezes me saboto quando estou prestes a alcançar um novo patamar financeiro.'},
+  {q:'Acredito profundamente que mereço viver em abundância em todas as áreas da vida.'},
 ];
 
 const LL=['Discordo totalmente','Discordo parcialmente','Neutro','Concordo parcialmente','Concordo totalmente'];
@@ -638,45 +626,6 @@ const SECINFO = [
   {lbl:'Seção 6 de 7',name:'Crenças de Capacidade',tag:'Capacidade'},
   {lbl:'Seção 7 de 7',name:'Merecimento de Abundância',tag:'Abundância'},
 ];
-
-const DA = {
-  DI:`Perfil <strong>DI — Diretor Influente</strong>: combina assertividade e orientação a resultados com carisma e capacidade de inspirar. Você decide rápido, comunica com impacto e mobiliza times com naturalidade. Quando está alinhado(a), é praticamente imparável. <strong>Ponto de atenção:</strong> equilibre a velocidade com a escuta — os melhores insights às vezes vêm de quem está sendo apressado.`,
-  ID:`Perfil <strong>ID — Influente Dominante</strong>: comunicador(a) nato(a) com forte orientação a resultados. Cria conexões rapidamente e mobiliza pessoas para uma causa. <strong>Ponto de atenção:</strong> desenvolva sistemas de follow-up — sua energia de início precisa de estrutura para chegar ao fim.`,
-  DC:`Perfil <strong>DC — Diretor Analítico</strong>: combina velocidade com exigência por qualidade. Entrega resultados com precisão e não aceita mediocridade. <strong>Ponto de atenção:</strong> suavize o estilo para construir equipes mais engajadas — pessoas produzem mais quando se sentem valorizadas, não apenas cobradas.`,
-  CD:`Perfil <strong>CD — Analítico Dominante</strong>: preciso(a), estratégico(a) e determinado(a). Pensa antes de agir e entrega com qualidade consistente. <strong>Ponto de atenção:</strong> desenvolva a delegação — confie no time mesmo quando o padrão é diferente do seu.`,
-  DS:`Perfil <strong>DS — Diretor Estável</strong>: executa com força e cuida da equipe. Combina resultado com fidelidade — um perfil raro e muito valorizado em posições de liderança de alto impacto.`,
-  SD:`Perfil <strong>SD — Estável Dominante</strong>: leal, consistente e determinado(a). Constrói negócios sólidos com base em confiança e entrega constante. <strong>Ponto de atenção:</strong> explore mais oportunidades de risco calculado.`,
-  IS:`Perfil <strong>IS — Influente Estável</strong>: líder humanista — inspira, cuida e cria ambientes onde as pessoas florescem. Ideal para negócios baseados em relacionamento. <strong>Ponto de atenção:</strong> desenvolva a habilidade de ter conversas difíceis — a gentileza precisa do coragem como par.`,
-  SI:`Perfil <strong>SI — Estável Influente</strong>: combina harmonia com comunicação afetuosa. É o(a) líder que todos querem no time. <strong>Ponto de atenção:</strong> desenvolva a capacidade de impor limites sem culpa.`,
-  IC:`Perfil <strong>IC — Influente Analítico</strong>: pensa com profundidade e comunica com clareza. Transforma análises complexas em mensagens que as pessoas entendem e abraçam — uma combinação rara e muito valiosa.`,
-  CI:`Perfil <strong>CI — Analítico Influente</strong>: detalhista e comunicativo(a). Convence com dados e cativa com a forma como os apresenta.`,
-  SC:`Perfil <strong>SC — Estável Analítico</strong>: metódico(a), confiável e preciso(a). Constrói processos sólidos e equipes de alta confiança. <strong>Ponto de atenção:</strong> acelere as decisões e abrace mais riscos calculados.`,
-  CS:`Perfil <strong>CS — Analítico Estável</strong>: combina precisão com paciência. Excelente para construir sistemas duradouros e entregas de qualidade consistente.`,
-};
-
-const VINFO = {
-  P:{name:'Poder',color:'#8B2020'},
-  E:{name:'Utilidade',color:'#B5601A'},
-  T:{name:'Conhecimento',color:'#4A3080'},
-  A:{name:'Harmonia',color:'#1A6B8A'},
-  S:{name:'Altruísmo',color:'#1A7A4A'},
-  R:{name:'Princípios',color:'#7A5A1A'},
-};
-
-const LEAD_INFO = {
-  E:{name:'Executivo',desc:'Lidera por resultados — direto, decisivo e orientado à ação. Estabelece metas claras e cobra entrega.'},
-  M:{name:'Motivador',desc:'Lidera por inspiração — energiza, vende a visão e mobiliza pessoas pelo entusiasmo e propósito.'},
-  O:{name:'Orientador',desc:'Lidera pelo cuidado — empático, próximo e focado no bem-estar e desenvolvimento de cada pessoa.'},
-  S:{name:'Sistemático',desc:'Lidera por estrutura — analítico, metódico e orientado a processos, dados e padrões de qualidade.'},
-};
-
-const METHOD = {
-  disc:'Desenvolvido pelo Dr. William Moulton Marston (1928) e aperfeiçoado por pesquisadores como John Geier, o modelo DISC mede 4 dimensões do comportamento observável. Seu perfil foi calculado com base na ordenação de 64 descritores em 16 grupos — quanto mais consistente sua escolha, mais preciso o resultado.',
-  mbti:'Baseado na teoria dos Tipos Psicológicos de Carl G. Jung e sistematizado por Isabel Briggs Myers, o MBTI identifica 16 tipos de personalidade a partir de 4 dimensões. É uma das ferramentas de autoconhecimento mais utilizadas no mundo, presente em Fortune 500 e processos de desenvolvimento de liderança.',
-  values:'A Teoria dos Tipos de Valores de Eduard Spranger (1914) identifica 6 motivadores fundamentais que guiam nossas decisões mais profundas. Diferente de preferências superficiais, esses valores são estáveis e influenciam suas escolhas mesmo quando você não percebe.',
-  leadership:'Seu estilo de liderança foi avaliado em 10 situações reais do mundo empresarial. Não existe estilo certo ou errado — cada um tem forças únicas. O autoconhecimento sobre como você lidera é o primeiro passo para liderar melhor.',
-  beliefs:'As crenças de identidade, capacidade e merecimento são os filtros invisíveis que determinam seus resultados. Estudos em neurociência comportamental mostram que nossas crenças sobre nós mesmos influenciam diretamente nossas ações, escolhas e limites.',
-};
 
 /* ════════ STATE ════════ */
 const SAVE_KEY = 'inself_assessment_v1';
@@ -735,11 +684,18 @@ function startTest(resuming){
       document.getElementById('regErr').classList.add('show');
       return;
     }
+    if(!document.getElementById('lgpd-consent') || !document.getElementById('lgpd-consent').checked){
+      const re = document.getElementById('regErr');
+      re.textContent = 'Para continuar, você precisa aceitar a Política de Privacidade.';
+      re.classList.add('show');
+      return;
+    }
     document.getElementById('regErr').classList.remove('show');
     ST.name = name; ST.email = email; ST.phone = phone;
     saveST();
   }
   buildAllSections();
+  registrarEvento('inicio');
   show('s-test');
   goToSection(ST.section || 1);
 }
@@ -940,93 +896,93 @@ function nextSection(){
   }
   if(ST.section<7){ goToSection(ST.section+1); }
   else {
-    show('s-loading');
-    setTimeout(()=>{ showResults(); }, 2600);
+    showResults();
   }
-}
-
-/* ════════ SCORING ════════ */
-const RANK_PTS = [3, 1, -1, -3];
-function calcDISC() {
-  let s = {D:0,I:0,S:0,C:0};
-  DG.forEach((g,gi) => {
-    const order = ST.disc[gi] || [];
-    order.forEach((wi,ri) => { s[g[wi].f] += RANK_PTS[ri]; });
-  });
-  const n = x => Math.round((x+48)/96*100);
-  return {D:n(s.D),I:n(s.I),S:n(s.S),C:n(s.C)};
-}
-function calcMBTI() {
-  let E=0,Iv=0,N=0,Sv=0,T=0,F=0,J=0,P=0;
-  MQ.forEach((q,qi) => {
-    const v = ST.mbti[qi]; if(!v) return;
-    if(v==='E')E++; else if(v==='I')Iv++;
-    else if(v==='N')N++; else if(v==='S')Sv++;
-    else if(v==='T')T++; else if(v==='F')F++;
-    else if(v==='J')J++; else if(v==='P')P++;
-  });
-  const t = (E>=Iv?'E':'I')+(N>=Sv?'N':'S')+(T>=F?'T':'F')+(J>=P?'J':'P');
-  return {
-    type:t,
-    Ep:Math.round(E/(E+Iv||1)*100), Ip:Math.round(Iv/(E+Iv||1)*100),
-    Np:Math.round(N/(N+Sv||1)*100), Sp:Math.round(Sv/(N+Sv||1)*100),
-    Tp:Math.round(T/(T+F||1)*100), Fp:Math.round(F/(T+F||1)*100),
-    Jp:Math.round(J/(J+P||1)*100), Pp:Math.round(P/(J+P||1)*100),
-  };
-}
-function calcValues(){
-  const sum={P:0,E:0,T:0,A:0,S:0,R:0}, ct={P:0,E:0,T:0,A:0,S:0,R:0};
-  VQ.forEach((q,qi)=>{ const v=ST.valores[qi]; if(v===undefined)return; sum[q.c]+=v; ct[q.c]++; });
-  const out={};
-  Object.keys(sum).forEach(k=>{ out[k]= ct[k]?Math.round(sum[k]/(ct[k]*5)*100):0; });
-  return out;
-}
-function calcLeadership(){
-  const c={E:0,M:0,O:0,S:0};
-  LQ.forEach((q,qi)=>{ const s=ST.lider[qi]; if(s)c[s]++; });
-  const tot = (c.E+c.M+c.O+c.S)||1;
-  return {E:Math.round(c.E/tot*100),M:Math.round(c.M/tot*100),O:Math.round(c.O/tot*100),S:Math.round(c.S/tot*100)};
-}
-function calcB(arr, key) {
-  let s=0,ct=0;
-  arr.forEach((q,qi) => { let v=ST[key][qi]; if(v===undefined)return; if(q.r)v=6-v; s+=v; ct++; });
-  return ct ? Math.round(s/(ct*5)*100) : 50;
-}
-function topDisc(disc){
-  const sorted = Object.entries(disc).sort((a,b)=>b[1]-a[1]);
-  return sorted[0][0]+sorted[1][0];
-}
-function bLevel(s){
-  if(s>=80)return{l:'Muito Forte',c:'#1A7A4A'};
-  if(s>=65)return{l:'Forte',c:'#2A9A5A'};
-  if(s>=50)return{l:'Moderado',c:'#B5601A'};
-  if(s>=35)return{l:'Em Desenvolvimento',c:'#C07010'};
-  return{l:'Atenção Necessária',c:'#8B2020'};
 }
 
 /* ════════ RESULTS RENDER ════════ */
 let radarChart = null;
-function showResults(){
-  const disc = calcDISC();
-  const mbti = calcMBTI();
-  const vals = calcValues();
-  const lid = calcLeadership();
-  const ident = calcB(IQ,'ident');
-  const capac = calcB(KQ,'capac');
-  const abund = calcB(AQ,'abund');
 
-  const profileKey = topDisc(disc);
-  const vs = Object.entries(vals).sort((a,b)=>b[1]-a[1]);
-  const ls = Object.entries({E:lid.E,M:lid.M,O:lid.O,S:lid.S}).sort((a,b)=>b[1]-a[1]);
-  const topValueName = VINFO[vs[0][0]].name;
-  const topLeadName = LEAD_INFO[ls[0][0]].name;
-  const mbtiInfo = MBTI_TYPES[mbti.type] || {name:mbti.type,tagline:'',desc:''};
+/* Envia as respostas ao servidor; toda a pontuação/interpretação vem de volta pronta. */
+async function showResults(){
+  show('s-loading');
+  const payload = {
+    nome: ST.name,
+    email: ST.email,
+    whatsapp: ST.phone || '',
+    respostas: {
+      disc: ST.disc,
+      mbti: ST.mbti,
+      valores: ST.valores,
+      lider: ST.lider,
+      ident: ST.ident,
+      capac: ST.capac,
+      abund: ST.abund,
+    },
+    token: token,
+    consentimento: true,
+    botcheck: '',
+  };
 
-  document.getElementById('resName').textContent = ST.name;
-  document.getElementById('resDate').textContent = new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+  let res, data;
+  try{
+    res = await fetch(PLATAFORMA_URL + '/api/testes/inself', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+  }catch(e){
+    return showFriendlyError();
+  }
 
-  const discProfileText = DA[profileKey] || `Perfil <strong>${profileKey}</strong>: combinação equilibrada dos seus fatores comportamentais, com forças que se complementam.`;
-  const waMsg = encodeURIComponent(`Olá Dra. Lauriane! Acabei de concluir meu Perfil Comportamental Inself e gostaria de agendar minha sessão gratuita de 30 minutos. Meu perfil: ${profileKey} / ${mbti.type} (${mbtiInfo.name})`);
+  if(res.status === 403){
+    return showBlockedScreen();
+  }
+
+  try{ data = await res.json(); }catch(e){ data = null; }
+
+  if(!res.ok || !data || !data.ok || !data.resultado){
+    return showFriendlyError();
+  }
+
+  renderResultado(data.resultado);
+}
+
+/* Tela de bloqueio (token inválido/expirado/usado) */
+function showBlockedScreen(){
+  document.querySelectorAll('.screen.active').forEach(s=>{ s.classList.remove('active'); s.style.opacity=''; });
+  document.getElementById('s-landing').style.display = 'none';
+  document.getElementById('s-loading').style.display = 'none';
+  const blocked = document.getElementById('s-blocked');
+  blocked.style.display = 'flex';
+  document.getElementById('blockedMsg').textContent = 'Este link de acesso não é válido ou já foi utilizado. Fale com a Dra. Lauriane.';
+  window.scrollTo(0,0);
+}
+
+/* Erro amigável genérico com opção de tentar novamente / WhatsApp */
+function showFriendlyError(){
+  document.querySelectorAll('.screen.active').forEach(s=>{ s.classList.remove('active'); s.style.opacity=''; });
+  document.getElementById('s-landing').style.display = 'none';
+  document.getElementById('s-loading').style.display = 'none';
+  const blocked = document.getElementById('s-blocked');
+  blocked.style.display = 'flex';
+  document.getElementById('blockedMsg').textContent = 'Não conseguimos gerar seu relatório agora. Verifique sua conexão e tente novamente. Se o problema persistir, fale com a Dra. Lauriane.';
+  window.scrollTo(0,0);
+}
+
+/* Renderiza a MESMA UI a partir do resultado calculado no servidor */
+function renderResultado(r){
+  document.getElementById('resName').textContent = r.nome || ST.name;
+  document.getElementById('resDate').textContent = r.data || new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+
+  const profileKey = r.disc.top;
+  const disc = r.disc.scores;
+  const mbtiType = r.mbti.type;
+  const mbtiName = r.mbti.name;
+  const topValueName = r.valores.top.name;
+  const topLeadName = r.lideranca.top.name;
+
+  const waMsg = encodeURIComponent(`Olá Dra. Lauriane! Acabei de concluir meu Perfil Comportamental Inself e gostaria de agendar minha sessão gratuita de 30 minutos. Meu perfil: ${profileKey} / ${mbtiType} (${mbtiName})`);
   const waLink = `https://wa.me/${CFG.mentorWhatsApp}?text=${waMsg}`;
 
   let html = '';
@@ -1035,14 +991,14 @@ function showResults(){
   html += `<div class="summary-card">
     <div class="summary-grid">
       <div class="sum-item"><div class="sum-label">DISC</div><div class="sum-value">${profileKey}</div><div class="sum-sub">Perfil dominante</div></div>
-      <div class="sum-item"><div class="sum-label">MBTI</div><div class="sum-value">${mbti.type}</div><div class="sum-sub">${mbtiInfo.name}</div></div>
+      <div class="sum-item"><div class="sum-label">MBTI</div><div class="sum-value">${mbtiType}</div><div class="sum-sub">${mbtiName}</div></div>
       <div class="sum-item"><div class="sum-label">Valor</div><div class="sum-value" style="font-size:1.2rem">${topValueName}</div><div class="sum-sub">Principal motivador</div></div>
       <div class="sum-item"><div class="sum-label">Liderança</div><div class="sum-value" style="font-size:1.2rem">${topLeadName}</div><div class="sum-sub">Estilo dominante</div></div>
     </div>
   </div>`;
 
   /* 2. Share bar */
-  const shareTxt = encodeURIComponent(`Concluí meu Perfil Comportamental Inself! Perfil: ${profileKey} / ${mbti.type} — ${mbtiInfo.name}. Faça o seu: ${CFG.appUrl}`);
+  const shareTxt = encodeURIComponent(`Concluí meu Perfil Comportamental Inself! Perfil: ${profileKey} / ${mbtiType} — ${mbtiName}. Faça o seu: ${CFG.appUrl}`);
   html += `<div class="share-bar">
     <a class="btn btn-ghost" href="https://wa.me/?text=${shareTxt}" target="_blank">WhatsApp</a>
     <a class="btn btn-ghost" href="mailto:?subject=${encodeURIComponent('Meu Perfil Comportamental Inself')}&body=${shareTxt}">E-mail</a>
@@ -1052,62 +1008,63 @@ function showResults(){
 
   /* 3. DISC card */
   html += `<div class="res-card"><div class="card-eyebrow">Dimensão I</div><h2>Perfil DISC</h2>
-    <div class="method-intro">${METHOD.disc}</div>
+    <div class="method-intro">${r.metodologia.disc}</div>
     <div class="bars">
       ${discBar('Dominância (D)',disc.D)}
       ${discBar('Influência (I)',disc.I)}
       ${discBar('Estabilidade (S)',disc.S)}
       ${discBar('Conformidade (C)',disc.C)}
     </div>
-    <div class="profile-text">${discProfileText}</div>
+    <div class="profile-text">${r.disc.texto}</div>
   </div>`;
 
   /* 4. MBTI card */
+  const p = r.mbti.pct;
   html += `<div class="res-card"><div class="card-eyebrow">Dimensão II</div><h2>Tipo de Personalidade Myers-Briggs</h2>
     <div class="mbti-reveal">
-      <span class="mbti-code">${mbti.type}</span>
-      <div class="mbti-reveal-name">${mbtiInfo.name}</div>
-      <span class="mbti-reveal-tagline">${mbtiInfo.tagline}</span>
+      <span class="mbti-code">${mbtiType}</span>
+      <div class="mbti-reveal-name">${mbtiName}</div>
+      <span class="mbti-reveal-tagline">${r.mbti.tagline}</span>
     </div>
-    <div class="method-intro">${METHOD.mbti}</div>
+    <div class="method-intro">${r.metodologia.mbti}</div>
     <div class="bars">
-      ${dichBar('Extroversão','Introversão',mbti.Ep,mbti.Ip)}
-      ${dichBar('Intuição','Sensação',mbti.Np,mbti.Sp)}
-      ${dichBar('Pensamento','Sentimento',mbti.Tp,mbti.Fp)}
-      ${dichBar('Julgamento','Percepção',mbti.Jp,mbti.Pp)}
+      ${dichBar('Extroversão','Introversão',p.Ep,p.Ip)}
+      ${dichBar('Intuição','Sensação',p.Np,p.Sp)}
+      ${dichBar('Pensamento','Sentimento',p.Tp,p.Fp)}
+      ${dichBar('Julgamento','Percepção',p.Jp,p.Pp)}
     </div>
-    <div class="profile-text">${mbtiInfo.desc}</div>
+    <div class="profile-text">${r.mbti.desc}</div>
   </div>`;
 
   /* 5. Values card */
   let valBars = '';
-  vs.forEach(([k,v])=>{ valBars += discBar(VINFO[k].name,v,VINFO[k].color); });
+  r.valores.todos.forEach(v=>{ valBars += discBar(v.name,v.score,v.color); });
   html += `<div class="res-card"><div class="card-eyebrow">Dimensão III</div><h2>Hierarquia de Valores</h2>
-    <div class="method-intro">${METHOD.values}</div>
+    <div class="method-intro">${r.metodologia.values}</div>
     <div class="bars">${valBars}</div>
     <div class="profile-text">Seu principal motivador é <strong>${topValueName}</strong>. Esse valor orienta suas decisões mais profundas, muitas vezes de forma inconsciente. Alinhar seu trabalho e suas metas a esse motivador é a chave para sustentar energia e propósito ao longo do tempo.</div>
   </div>`;
 
   /* 6. Leadership card */
   let leadBars = '';
-  ls.forEach(([k,v])=>{ leadBars += discBar(LEAD_INFO[k].name,v); });
+  r.lideranca.todos.forEach(l=>{ leadBars += discBar(l.name,l.score); });
   html += `<div class="res-card"><div class="card-eyebrow">Dimensão IV</div><h2>Estilo de Liderança</h2>
-    <div class="method-intro">${METHOD.leadership}</div>
+    <div class="method-intro">${r.metodologia.leadership}</div>
     <div class="bars">${leadBars}</div>
-    <div class="profile-text"><strong>${topLeadName}:</strong> ${LEAD_INFO[ls[0][0]].desc}</div>
+    <div class="profile-text"><strong>${topLeadName}:</strong> ${r.lideranca.top.desc}</div>
   </div>`;
 
   /* 7. Beliefs map */
-  const il = bLevel(ident), cl = bLevel(capac), al = bLevel(abund);
+  const cr = r.crencas;
   html += `<div class="res-card"><div class="card-eyebrow">Dimensões V · VI · VII</div><h2>Mapa de Crenças</h2>
-    <div class="method-intro">${METHOD.beliefs}</div>
+    <div class="method-intro">${r.metodologia.beliefs}</div>
     <div class="belief-grid">
-      <div class="belief-item"><div class="belief-score" style="color:${il.c}">${ident}</div><div class="belief-lbl" style="color:${il.c}">${il.l}</div><div class="belief-name">Identidade</div></div>
-      <div class="belief-item"><div class="belief-score" style="color:${cl.c}">${capac}</div><div class="belief-lbl" style="color:${cl.c}">${cl.l}</div><div class="belief-name">Capacidade</div></div>
-      <div class="belief-item"><div class="belief-score" style="color:${al.c}">${abund}</div><div class="belief-lbl" style="color:${al.c}">${al.l}</div><div class="belief-name">Abundância</div></div>
+      <div class="belief-item"><div class="belief-score" style="color:${cr.identidade.cor}">${cr.identidade.score}</div><div class="belief-lbl" style="color:${cr.identidade.cor}">${cr.identidade.nivel}</div><div class="belief-name">Identidade</div></div>
+      <div class="belief-item"><div class="belief-score" style="color:${cr.capacidade.cor}">${cr.capacidade.score}</div><div class="belief-lbl" style="color:${cr.capacidade.cor}">${cr.capacidade.nivel}</div><div class="belief-name">Capacidade</div></div>
+      <div class="belief-item"><div class="belief-score" style="color:${cr.abundancia.cor}">${cr.abundancia.score}</div><div class="belief-lbl" style="color:${cr.abundancia.cor}">${cr.abundancia.nivel}</div><div class="belief-name">Abundância</div></div>
     </div>
-    <div class="profile-text" style="margin-top:1.25rem">${beliefsNarrative(ident,capac,abund)}</div>
-    ${financialDiagnosis(abund,ident,capac)}
+    <div class="profile-text" style="margin-top:1.25rem">${cr.narrativa}</div>
+    ${financialDiagCard(r.diagnosticoFinanceiro)}
   </div>`;
 
   /* 8. Radar chart */
@@ -1119,7 +1076,7 @@ function showResults(){
   /* 9. Development plan */
   html += `<div class="res-card"><div class="card-eyebrow">Dimensão VIII</div><h2>Plano de Desenvolvimento</h2>
     <div class="method-intro">Recomendações personalizadas com base no seu perfil completo. Pequenos ajustes consistentes geram grandes transformações.</div>
-    <ul class="plan-list">${buildPlan(disc,mbti,ident,capac,abund,profileKey).map((p,i)=>`<li><span class="plan-n">${i+1}</span><span>${p}</span></li>`).join('')}</ul>
+    <ul class="plan-list">${r.plano.map((pl,i)=>`<li><span class="plan-n">${i+1}</span><span>${pl}</span></li>`).join('')}</ul>
   </div>`;
 
   /* 10. Bonus CTA */
@@ -1138,8 +1095,8 @@ function showResults(){
   </div>`;
 
   /* 11. Mentor CTA */
-  const mentorBody = encodeURIComponent(`Olá ${CFG.mentorName},\n\nConcluí o Perfil Comportamental Inself.\n\nNome: ${ST.name}\nE-mail: ${ST.email}\nWhatsApp: ${ST.phone||'—'}\n\nResultados:\n— DISC: ${profileKey} (D${disc.D} I${disc.I} S${disc.S} C${disc.C})\n— MBTI: ${mbti.type} — ${mbtiInfo.name}\n— Valor principal: ${topValueName}\n— Liderança: ${topLeadName}\n— Identidade: ${ident}/100 | Capacidade: ${capac}/100 | Abundância: ${abund}/100\n\nGostaria de conversar sobre meu desenvolvimento.`);
-  const mentorWaMsg = encodeURIComponent(`Olá ${CFG.mentorName}! Concluí o Perfil Comportamental Inself. Perfil: ${profileKey} / ${mbti.type} (${mbtiInfo.name}). Valor: ${topValueName}. Crenças — Id:${ident} Cap:${capac} Ab:${abund}. Gostaria de conversar sobre meu desenvolvimento.`);
+  const mentorBody = encodeURIComponent(`Olá ${CFG.mentorName},\n\nConcluí o Perfil Comportamental Inself.\n\nNome: ${ST.name}\nE-mail: ${ST.email}\nWhatsApp: ${ST.phone||'—'}\n\nResultados:\n— DISC: ${profileKey} (D${disc.D} I${disc.I} S${disc.S} C${disc.C})\n— MBTI: ${mbtiType} — ${mbtiName}\n— Valor principal: ${topValueName}\n— Liderança: ${topLeadName}\n— Identidade: ${cr.identidade.score}/100 | Capacidade: ${cr.capacidade.score}/100 | Abundância: ${cr.abundancia.score}/100\n\nGostaria de conversar sobre meu desenvolvimento.`);
+  const mentorWaMsg = encodeURIComponent(`Olá ${CFG.mentorName}! Concluí o Perfil Comportamental Inself. Perfil: ${profileKey} / ${mbtiType} (${mbtiName}). Valor: ${topValueName}. Crenças — Id:${cr.identidade.score} Cap:${cr.capacidade.score} Ab:${cr.abundancia.score}. Gostaria de conversar sobre meu desenvolvimento.`);
   html += `<div class="mentor-card">
     <h3>Envie seu resultado para a ${CFG.mentorName}</h3>
     <p>Compartilhe seu relatório para um acompanhamento personalizado do seu desenvolvimento.</p>
@@ -1149,38 +1106,21 @@ function showResults(){
     </div>
   </div>`;
 
-  /* Rating section */
-  html += `<div class="rating-section" id="ratingSection">
-    <div class="rating-title">Como você avalia esta experiência?</div>
-    <div class="rating-sub">Sua opinião é muito importante para continuarmos evoluindo.</div>
-    <div class="star-row" id="starRow">
-      <span class="star" data-n="1" onclick="selectStar(1)">&#9733;</span>
-      <span class="star" data-n="2" onclick="selectStar(2)">&#9733;</span>
-      <span class="star" data-n="3" onclick="selectStar(3)">&#9733;</span>
-      <span class="star" data-n="4" onclick="selectStar(4)">&#9733;</span>
-      <span class="star" data-n="5" onclick="selectStar(5)">&#9733;</span>
-    </div>
-    <textarea id="ratingMsg" class="rating-msg" placeholder="Deixe um comentário sobre sua experiência (opcional)..."></textarea>
-    <button class="btn btn-wine" id="ratingBtn" onclick="submitRating()" style="width:100%;justify-content:center">Enviar Avaliação</button>
-    <div class="rating-thanks" id="ratingThanks">
-      <div class="rt-title">Obrigada pelo seu feedback!</div>
-      <div class="rt-sub">Sua avaliação foi registrada e enviada.</div>
-    </div>
+  /* Selo de certificação ISO 9001 */
+  html += `<div style="text-align:center;margin:2rem 0 1rem;">
+    <img src="https://portal.dralaurianesilva.com.br/selo-iso9001.png" alt="Método certificado ISO 9001 — EUA · Europa · Suíça · Dubai" style="max-width:280px;width:100%;height:auto;" />
   </div>`;
 
   document.getElementById('resBody').innerHTML = html;
-  markTokenUsed(window._activeToken);
-  resetRating();
+  clearST();
   show('s-results');
+  registrarEvento('conclusao');
 
   /* animate bars */
   setTimeout(()=>{ document.querySelectorAll('.bar-fill').forEach(b=>{ b.style.width = b.dataset.w+'%'; }); }, 80);
 
-  /* radar */
-  renderRadar(disc, ident, capac, abund);
-
-  /* email submit */
-  submitToEmailJS(disc, mbti, vals, lid, ident, capac, abund);
+  /* radar (labels + valores prontos do servidor) */
+  renderRadar(r.radar);
 }
 
 function discBar(label,val,color){
@@ -1191,71 +1131,19 @@ function dichBar(left,right,lp,rp){
   const dom = lp>=rp;
   return `<div class="bar-row"><div class="bar-top"><span>${left} (${lp}%)</span><span>${right} (${rp}%)</span></div><div class="bar-track"><div class="bar-fill" data-w="${dom?lp:rp}" style="width:0;${dom?'':'margin-left:auto;'}background:var(--wine)"></div></div></div>`;
 }
-function financialDiagnosis(ab,id,ca){
-  const overall = Math.round(ab*0.5 + id*0.25 + ca*0.25);
-  let cls,title,body,action;
-  if(overall>=80){
-    cls='diag-aligned';
-    title='Mentalidade Financeira Alinhada';
-    body=`Seu conjunto de crenças — Identidade (${id}/100), Capacidade (${ca}/100) e Merecimento (${ab}/100) — está acima do limiar crítico de 80 pontos. Isso indica que você opera a partir de uma mentalidade de abundância: acredita que merece prosperar, que tem capacidade de gerar riqueza e que sua identidade é compatível com o sucesso financeiro em alto nível.`;
-    action='Continue cultivando e expandindo esse campo. A manutenção de crenças alinhadas exige revisão periódica, especialmente em períodos de expansão acelerada — novos níveis trazem novas crenças a serem trabalhadas.';
-  } else if(overall>=65){
-    cls='diag-moderate';
-    title='Crenças em Desenvolvimento — Zona de Atenção';
-    body=`Crenças financeiras abaixo de 80 criam um "teto de vidro invisível": você consegue crescer até um certo ponto, mas uma força subconsciente freia a expansão. Com um score combinado de ${overall}/100, você provavelmente já experimenta ciclos de avanço e recuo financeiro — sentindo que quase chega lá, mas algo sempre interrompe.`;
-    action='Para superar esse limiar, não basta mudar comportamentos financeiros — é necessário reprogramar as crenças na raiz. Enquanto a mente inconsciente interpretar prosperidade como perigosa, improvável ou "não para mim", qualquer estratégia encontrará resistência interna. A sessão gratuita com a Dra. Lauriane Silva é o próximo passo.';
-  } else {
-    cls='diag-critical';
-    title='Bloqueio Financeiro Identificado — Reprogramação Necessária';
-    body=`Um score combinado de ${overall}/100 é um sinal claro: existe um bloqueio subconsciente ativamente impedindo sua prosperidade. Crenças abaixo de 65 em qualquer dimensão criam padrões de sabotagem automática — você pode trabalhar intensamente, mas os resultados financeiros ficam abaixo do seu real potencial. Isso não é falta de esforço ou de habilidade. É programação mental incompatível com a abundância.`;
-    action='Reprogramação mental não é opcional neste ponto — é urgente. Enquanto essas crenças permanecerem ativas no inconsciente, qualquer estratégia de negócio encontrará resistência interna. A Dra. Lauriane Silva trabalha com reprogramação de crenças financeiras através de hipnoterapia clínica e neurociência comportamental — agende sua sessão gratuita agora.';
-  }
-  return `<div class="financial-diag ${cls}"><div class="fd-title">${title}</div><p class="fd-body">${body}</p><div class="fd-action"><div class="fd-action-label">O que fazer</div><p>${action}</p></div></div>`;
+/* Cartão do diagnóstico financeiro — texto e faixa vêm prontos do servidor */
+function financialDiagCard(d){
+  const clsMap = { aligned:'diag-aligned', moderate:'diag-moderate', critical:'diag-critical' };
+  const cls = clsMap[d.faixa] || 'diag-moderate';
+  return `<div class="financial-diag ${cls}"><div class="fd-title">${d.titulo}</div><p class="fd-body">${d.corpo}</p><div class="fd-action"><div class="fd-action-label">O que fazer</div><p>${d.acao}</p></div></div>`;
 }
 
-function beliefsNarrative(id,cap,ab){
-  const lowest = Math.min(id,cap,ab);
-  let focus = '';
-  if(lowest===ab) focus='Sua maior oportunidade está no <strong>merecimento de abundância</strong> — trabalhar a permissão interna para receber pode destravar resultados financeiros.';
-  else if(lowest===cap) focus='Sua maior oportunidade está nas <strong>crenças de capacidade</strong> — fortalecer a confiança nas suas habilidades acelera sua tomada de ação.';
-  else focus='Sua maior oportunidade está nas <strong>crenças de identidade</strong> — consolidar quem você é como líder dá base para tudo o mais.';
-  return `Suas crenças são os filtros invisíveis dos seus resultados. ${focus} A boa notícia: crenças são treináveis, e é exatamente isso que o trabalho com a ${CFG.mentorName} desenvolve.`;
-}
-function buildPlan(disc,mbti,id,cap,ab,profileKey){
-  const plan = [];
-  const sorted = Object.entries(disc).sort((a,b)=>a[1]-b[1]);
-  const lowFactor = sorted[0][0];
-  const factorTip = {
-    D:'Pratique a assertividade: tome uma decisão importante por dia sem buscar validação externa.',
-    I:'Invista em comunicação e relacionamento: compartilhe suas ideias publicamente uma vez por semana.',
-    S:'Desenvolva consistência e paciência: implemente uma rotina estável que sustente seus grandes objetivos.',
-    C:'Refine processos e atenção ao detalhe: documente um sistema-chave do seu negócio.',
-  };
-  plan.push(factorTip[lowFactor]);
-  if(ab<65) plan.push('Trabalhe seu merecimento de abundância: revise seus preços e pratique cobrar pelo valor que entrega, sem culpa.');
-  if(cap<65) plan.push('Fortaleça suas crenças de capacidade: registre semanalmente 3 evidências de competência e conquistas suas.');
-  if(id<65) plan.push('Consolide sua identidade de líder: escreva uma declaração de quem você é como empreendedor(a) e leia diariamente.');
-  plan.push(`Aproveite seu tipo ${mbti.type}: posicione-se em atividades que usem suas forças naturais e delegue o que te drena energia.`);
-  plan.push(`Agende sua sessão gratuita de 30 minutos com a ${CFG.mentorName} para transformar este diagnóstico em um plano de ação concreto.`);
-  return plan.slice(0,6);
-}
-
-function renderRadar(disc, id, cap, ab){
+function renderRadar(radar){
   const ctx = document.getElementById('radarCanvas');
   if(!ctx || typeof Chart==='undefined') return;
   if(radarChart) radarChart.destroy();
-  const labels = ['Liderança','Comunicação','Estabilidade','Análise','Decisão','Influência','Persistência','Precisão','Identidade','Capacidade','Abundância','Visão','Execução','Empatia','Foco','Resiliência'];
-  const data = [
-    disc.D, disc.I, disc.S, disc.C,
-    Math.round((disc.D+cap)/2), disc.I,
-    disc.S, disc.C,
-    id, cap, ab,
-    Math.round((disc.D+disc.I)/2),
-    Math.round((disc.D+disc.C)/2),
-    Math.round((disc.I+disc.S)/2),
-    Math.round((disc.C+id)/2),
-    Math.round((id+cap)/2),
-  ];
+  const labels = radar.labels;
+  const data = radar.valores;
   radarChart = new Chart(ctx,{
     type:'radar',
     data:{ labels, datasets:[{ label:'Suas competências', data, backgroundColor:'rgba(86,33,32,.18)', borderColor:'#562120', borderWidth:2, pointBackgroundColor:'#3F1817', pointRadius:3 }] },
@@ -1265,79 +1153,6 @@ function renderRadar(disc, id, cap, ab){
       scales:{ r:{ min:0, max:100, ticks:{ stepSize:25, color:'#857D75', backdropColor:'transparent', font:{size:9} }, grid:{ color:'#E8E2D9' }, angleLines:{ color:'#E8E2D9' }, pointLabels:{ color:'#1A1818', font:{ size:10, family:'Inter' } } } }
     }
   });
-}
-
-/* ════════ EMAILJS ════════ */
-function submitToEmailJS(disc, mbti, vals, lid, ident, capac, abund) {
-  if (!EMAILJS_CFG.publicKey || EMAILJS_CFG.publicKey === 'SUA_PUBLIC_KEY') return;
-  try{
-    emailjs.init(EMAILJS_CFG.publicKey);
-    const profile = topDisc(disc);
-    const vs = Object.entries(vals).sort((a,b)=>b[1]-a[1]);
-    const ls = Object.entries({Executivo:lid.E,Motivador:lid.M,Orientador:lid.O,Sistemático:lid.S}).sort((a,b)=>b[1]-a[1]);
-
-    const all_values = vs.map(([k,v])=>`${VINFO[k].name}: ${v}/100`).join(' | ');
-    const all_leadership = ls.map(([n,v])=>`${n}: ${v}%`).join(' | ');
-    const mbti_details = `E:${mbti.Ep}% I:${mbti.Ip}% | N:${mbti.Np}% S:${mbti.Sp}% | T:${mbti.Tp}% F:${mbti.Fp}% | J:${mbti.Jp}% P:${mbti.Pp}%`;
-
-    emailjs.send(EMAILJS_CFG.serviceId, EMAILJS_CFG.templateId, {
-      name: ST.name,
-      email: ST.email,
-      respondent_name: ST.name,
-      respondent_email: ST.email,
-      respondent_phone: ST.phone || '—',
-      assessment_date: new Date().toLocaleDateString('pt-BR'),
-      disc_profile: profile,
-      disc_d: disc.D, disc_i: disc.I, disc_s: disc.S, disc_c: disc.C,
-      mbti_type: mbti.type,
-      mbti_name: MBTI_TYPES[mbti.type]?.name || '',
-      mbti_details,
-      top_value: VINFO[vs[0][0]].name,
-      all_values,
-      leadership: ls[0][0],
-      all_leadership,
-      identity_score: ident,
-      capacity_score: capac,
-      abundance_score: abund,
-    });
-  }catch(e){ console.warn('EmailJS relatório:',e); }
-}
-
-/* ════════ RATING ════════ */
-let _selectedStars = 0;
-function resetRating(){ _selectedStars = 0; }
-
-function selectStar(n){
-  _selectedStars = n;
-  document.querySelectorAll('.star').forEach((s,i)=>{
-    s.classList.toggle('active', i < n);
-  });
-}
-
-function submitRating(){
-  if(!_selectedStars){ toast('Selecione pelo menos 1 estrela.'); return; }
-  const msg = document.getElementById('ratingMsg').value.trim();
-  const stars = '★'.repeat(_selectedStars) + '☆'.repeat(5-_selectedStars);
-
-  if(EMAILJS_CFG.publicKey && EMAILJS_CFG.ratingTemplateId !== 'template_AVALIAC'){
-    try{
-      emailjs.send(EMAILJS_CFG.serviceId, EMAILJS_CFG.ratingTemplateId, {
-        name: ST.name,
-        email: ST.email,
-        respondent_name: ST.name,
-        respondent_email: ST.email,
-        respondent_phone: ST.phone || '—',
-        assessment_date: new Date().toLocaleDateString('pt-BR'),
-        rating_stars: `${_selectedStars}/5 ${stars}`,
-        rating_message: msg || '(sem mensagem)',
-      });
-    }catch(e){ console.warn('EmailJS avaliação:',e); }
-  }
-
-  document.getElementById('ratingBtn').style.display = 'none';
-  document.getElementById('ratingMsg').style.display = 'none';
-  document.getElementById('starRow').style.pointerEvents = 'none';
-  document.getElementById('ratingThanks').style.display = 'block';
 }
 
 /* ════════ ACTIONS ════════ */
@@ -1376,65 +1191,10 @@ function restartTest(){
   show('s-landing');
 }
 
-/* ════════ TOKEN SYSTEM ════════ */
-const USED_TOKENS_KEY = 'inself_used_tokens';
-window._activeToken = null;
-
-function getUrlToken(){
-  return new URLSearchParams(window.location.search).get('t') || null;
-}
-function isTokenValid(token){
-  // Sem token = acesso livre (mentor testa normalmente, link público funciona)
-  if(!token) return {valid:true};
-  try{
-    const parts = token.split('_');
-    if(parts.length !== 2) return {valid:false,reason:'invalid_format'};
-    const expiry = parseInt(parts[1], 36);
-    if(isNaN(expiry)) return {valid:false,reason:'invalid_format'};
-    if(Date.now() > expiry) return {valid:false,reason:'expired'};
-    const used = JSON.parse(localStorage.getItem(USED_TOKENS_KEY)||'[]');
-    if(used.includes(token)) return {valid:false,reason:'already_used'};
-    return {valid:true};
-  }catch(e){ return {valid:false,reason:'error'}; }
-}
-function markTokenUsed(token){
-  if(!token) return;
-  try{
-    const used = JSON.parse(localStorage.getItem(USED_TOKENS_KEY)||'[]');
-    if(!used.includes(token)){ used.push(token); localStorage.setItem(USED_TOKENS_KEY, JSON.stringify(used)); }
-  }catch(e){}
-}
-// Called from admin.html (exposed globally)
-function generateToken(days=7){
-  const rand = Math.random().toString(36).substring(2,10)+Math.random().toString(36).substring(2,6);
-  const expiry = (Date.now()+days*86400000).toString(36);
-  return `${rand}_${expiry}`;
-}
-
 /* ════════ INIT ════════ */
-window.addEventListener('DOMContentLoaded', ()=>{
-  const token = getUrlToken();
-  const validation = isTokenValid(token);
-
-  if(!validation.valid){
-    // Show blocked screen
-    document.getElementById('s-landing').style.display = 'none';
-    const blocked = document.getElementById('s-blocked');
-    blocked.style.display = 'flex';
-    const msgs = {
-      no_token: 'Este link não é válido. Para realizar o Perfil Comportamental Inself, solicite um link personalizado à Dra. Lauriane Silva.',
-      expired: 'Este link expirou. Entre em contato com a Dra. Lauriane Silva para receber um novo link.',
-      already_used: 'Este link já foi utilizado. Cada link é exclusivo para um único acesso. Entre em contato com a Dra. Lauriane Silva para realizar uma nova análise.',
-      invalid_format: 'Link inválido. Certifique-se de usar o link completo enviado pela Dra. Lauriane Silva.',
-      error: 'Não foi possível validar o link. Tente novamente ou entre em contato.',
-    };
-    document.getElementById('blockedMsg').textContent = msgs[validation.reason] || msgs.error;
-    return;
-  }
-
-  window._activeToken = token;
-  /* Landing shown by default. Resume offered on register screen. */
-});
+/* O token de ?t= é validado no servidor (uso único/expiração).
+   Aqui a landing é exibida normalmente; o bloqueio acontece ao enviar as respostas. */
+registrarEvento('view');
 </script>
 </body>
 </html>
